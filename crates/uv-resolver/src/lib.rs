@@ -8,8 +8,8 @@ pub use flat_index::{FlatDistributions, FlatIndex};
 pub use fork_strategy::ForkStrategy;
 pub use lock::{
     Installable, Lock, LockError, LockVersion, Package, PackageMap, PylockToml,
-    PylockTomlErrorKind, RequirementsTxtExport, ResolverManifest, SatisfiesResult, TreeDisplay,
-    VERSION,
+    PylockTomlErrorKind, RequirementsTxtExport, ResolverManifest, SatisfiesResult, SbomExport,
+    TreeDisplay, VERSION,
 };
 pub use manifest::Manifest;
 pub use options::{Flexibility, Options, OptionsBuilder};

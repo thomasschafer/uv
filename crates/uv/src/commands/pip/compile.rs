@@ -431,19 +431,25 @@ pub(crate) async fn pip_compile(
         .build();
 
     // Read the lockfile, if present.
-    let LockedRequirements { preferences, git } =
-        if let Some(output_file) = output_file.filter(|output_file| output_file.exists()) {
-            match format {
-                ExportFormat::RequirementsTxt => LockedRequirements::from_preferences(
-                    read_requirements_txt(output_file, &upgrade).await?,
-                ),
-                ExportFormat::PylockToml => {
-                    read_pylock_toml_requirements(output_file, &upgrade).await?
-                }
+    let LockedRequirements { preferences, git } = if let Some(output_file) =
+        output_file.filter(|output_file| output_file.exists())
+    {
+        match format {
+            ExportFormat::RequirementsTxt => LockedRequirements::from_preferences(
+                read_requirements_txt(output_file, &upgrade).await?,
+            ),
+            ExportFormat::PylockToml => {
+                read_pylock_toml_requirements(output_file, &upgrade).await?
             }
-        } else {
-            LockedRequirements::default()
-        };
+            ExportFormat::Sbom => {
+                return Err(anyhow::anyhow!(
+                    "SBOM export format is not supported for pip compile. Use `uv export --format=sbom` instead."
+                ));
+            }
+        }
+    } else {
+        LockedRequirements::default()
+    };
 
     // Populate the Git resolver.
     for ResolvedRepositoryReference { reference, sha } in git {
@@ -591,6 +597,11 @@ pub(crate) async fn pip_compile(
     }
 
     match format {
+        ExportFormat::Sbom => {
+            return Err(anyhow::anyhow!(
+                "SBOM export format is not supported for pip compile. Use `uv export --format=sbom` instead."
+            ));
+        }
         ExportFormat::RequirementsTxt => {
             if include_marker_expression {
                 if let Some(marker_env) = resolver_env.marker_environment() {
