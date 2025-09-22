@@ -61,11 +61,22 @@ impl<'lock> SbomExport {
         // Create workspace member components
         let workspace_components = Self::create_workspace_components(target)?;
 
-        // Create dependency components from exportable requirements
+        // Create dependency components from exportable requirements (excluding workspace members)
         let mut dependency_components = Vec::new();
         let mut component_refs = BTreeSet::new();
 
+        // Get workspace member names for filtering
+        let workspace_member_names: BTreeSet<_> = target.lock().members().iter().collect();
+
         for node in nodes {
+            // Skip workspace members - they're already added by create_workspace_components
+            // But for single projects (no workspace members), we need to include the root package
+            if !workspace_member_names.is_empty()
+                && workspace_member_names.contains(&node.package.id.name)
+            {
+                continue;
+            }
+
             let component = Self::create_component_from_package(node.package, include_hashes)?;
             let component_bom_ref = component.bom_ref.clone();
 
@@ -147,6 +158,7 @@ impl<'lock> SbomExport {
             description: Some("uv workspace or project".to_string()),
             hashes: None,
             purl: None,
+            properties: None,
         };
 
         Ok(component)
@@ -166,10 +178,11 @@ impl<'lock> SbomExport {
             }
         }
 
-        // Add root package if it's not in members (single-member workspace)
+        // Add root package if it's not in members (single project, not a workspace)
         if lock.members().is_empty() {
             if let Some(root_package) = lock.root() {
-                let component = Self::create_workspace_member_component(root_package)?;
+                // For single projects, create a special component that's marked as the main project
+                let component = Self::create_single_project_component(root_package)?;
                 components.push(component);
             }
         }
@@ -189,6 +202,26 @@ impl<'lock> SbomExport {
                 .unwrap_or_else(|| "unknown".to_string())
         );
 
+        // Extract relative path for workspace members
+        let mut properties = vec![
+            Property {
+                name: "uv:workspace_member".to_string(),
+                value: "true".to_string(),
+            },
+            Property {
+                name: "uv:source_type".to_string(),
+                value: "workspace".to_string(),
+            },
+        ];
+
+        // Add relative path if available from the source
+        if let Some(relative_path) = Self::extract_workspace_relative_path(package) {
+            properties.push(Property {
+                name: "uv:workspace_path".to_string(),
+                value: relative_path,
+            });
+        }
+
         let component = Component {
             bom_ref,
             r#type: "library".to_string(), // Workspace members are typically libraries
@@ -197,9 +230,59 @@ impl<'lock> SbomExport {
             description: Some(format!("Workspace member: {}", package.id.name)),
             hashes: None, // Workspace members typically don't have hashes
             purl: Some(Self::create_purl_from_package(package)?),
+            properties: Some(properties),
         };
 
         Ok(component)
+    }
+
+    fn create_single_project_component(package: &Package) -> Result<Component, LockError> {
+        let bom_ref = format!(
+            "pkg:pypi/{}@{}",
+            package.id.name,
+            package
+                .id
+                .version
+                .as_ref()
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "unknown".to_string())
+        );
+
+        let component = Component {
+            bom_ref,
+            r#type: "library".to_string(),
+            name: package.id.name.to_string(),
+            version: package.id.version.as_ref().map(|v| v.to_string()),
+            description: Some(format!("Single project: {}", package.id.name)),
+            hashes: None, // Single projects typically don't have hashes
+            purl: Some(Self::create_purl_from_package(package)?),
+            properties: Some(vec![
+                Property {
+                    name: "uv:workspace_member".to_string(),
+                    value: "false".to_string(), // Single projects are not workspace members
+                },
+                Property {
+                    name: "uv:source_type".to_string(),
+                    value: "project".to_string(), // Special type for single projects
+                },
+                Property {
+                    name: "uv:project_type".to_string(),
+                    value: "single".to_string(),
+                },
+            ]),
+        };
+
+        Ok(component)
+    }
+
+    fn extract_workspace_relative_path(package: &Package) -> Option<String> {
+        // Extract the relative path from workspace member sources
+        match &package.id.source {
+            Source::Path(path) => Some(format!("./{}", path.display())),
+            Source::Directory(path) => Some(format!("./{}", path.display())),
+            Source::Editable(path) => Some(format!("./{}", path.display())),
+            _ => None,
+        }
     }
 
     fn create_component_from_package(
@@ -233,6 +316,17 @@ impl<'lock> SbomExport {
             None
         };
 
+        // Determine source type from package source
+        let source_type = match &package.id.source {
+            Source::Registry(_) => "registry",
+            Source::Git(..) => "git",
+            Source::Direct(..) => "direct",
+            Source::Path(_) => "path",
+            Source::Directory(_) => "directory",
+            Source::Editable(_) => "editable",
+            Source::Virtual(_) => "virtual",
+        };
+
         let component = Component {
             bom_ref,
             r#type: "library".to_string(),
@@ -241,6 +335,16 @@ impl<'lock> SbomExport {
             description: None,
             hashes,
             purl: Some(Self::create_purl_from_package(package)?),
+            properties: Some(vec![
+                Property {
+                    name: "uv:workspace_member".to_string(),
+                    value: "false".to_string(),
+                },
+                Property {
+                    name: "uv:source_type".to_string(),
+                    value: source_type.to_string(),
+                },
+            ]),
         };
 
         Ok(component)
@@ -448,12 +552,20 @@ struct Component {
     hashes: Option<Vec<Hash>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     purl: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    properties: Option<Vec<Property>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Hash {
     alg: String,
     content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Property {
+    name: String,
+    value: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
