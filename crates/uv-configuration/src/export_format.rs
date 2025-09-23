@@ -15,4 +15,5 @@ pub enum ExportFormat {
     #[serde(rename = "pylock.toml", alias = "pylock-toml")]
     #[cfg_attr(feature = "clap", clap(name = "pylock.toml", alias = "pylock-toml"))]
     PylockToml,
+    Sbom,
 }

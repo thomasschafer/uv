@@ -4618,3 +4618,435 @@ fn export_only_group_and_extra_conflict() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn sbom_workspace_export() -> Result<()> {
+    let context = TestContext::new("3.12");
+
+    // Create main workspace with two members
+    let pyproject_toml = context.temp_dir.child("pyproject.toml");
+    pyproject_toml.write_str(
+        r#"
+        [project]
+        name = "main-project"
+        version = "0.1.0"
+        requires-python = ">=3.12"
+        dependencies = [
+            "requests>=2.25.0",
+            "workspace-lib-a",
+            "workspace-lib-b"
+        ]
+
+        [tool.uv.workspace]
+        members = ["libs/*"]
+
+        [tool.uv.sources]
+        workspace-lib-a = { workspace = true }
+        workspace-lib-b = { workspace = true }
+
+        [build-system]
+        requires = ["setuptools>=42"]
+        build-backend = "setuptools.build_meta"
+        "#,
+    )?;
+
+    // Create first workspace member
+    let lib_a_dir = context.temp_dir.child("libs").child("workspace-lib-a");
+    lib_a_dir.create_dir_all()?;
+    lib_a_dir.child("pyproject.toml").write_str(
+        r#"
+        [project]
+        name = "workspace-lib-a"
+        version = "0.2.0"
+        requires-python = ">=3.12"
+        dependencies = ["click>=8.0"]
+
+        [build-system]
+        requires = ["setuptools>=42"]
+        build-backend = "setuptools.build_meta"
+        "#,
+    )?;
+
+    // Create second workspace member that depends on the first
+    let lib_b_dir = context.temp_dir.child("libs").child("workspace-lib-b");
+    lib_b_dir.create_dir_all()?;
+    lib_b_dir.child("pyproject.toml").write_str(
+        r#"
+        [project]
+        name = "workspace-lib-b"
+        version = "0.3.0"
+        requires-python = ">=3.12"
+        dependencies = [
+            "workspace-lib-a",
+            "typer>=0.9.0"
+        ]
+
+        [tool.uv.sources]
+        workspace-lib-a = { workspace = true }
+
+        [build-system]
+        requires = ["setuptools>=42"]
+        build-backend = "setuptools.build_meta"
+        "#,
+    )?;
+
+    context.lock().assert().success();
+
+    // Export to SBOM format and capture output
+    let output = context
+        .export()
+        .arg("--format")
+        .arg("sbom")
+        .arg("--no-header")
+        .output()?;
+
+    assert!(
+        output.status.success(),
+        "Export command failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let sbom_json = String::from_utf8(output.stdout)?;
+    let sbom: serde_json::Value = serde_json::from_str(&sbom_json)?;
+
+    // Verify CycloneDX structure
+    assert_eq!(sbom["bomFormat"], "CycloneDX");
+    assert_eq!(sbom["specVersion"], "1.5");
+    assert!(
+        sbom["serialNumber"]
+            .as_str()
+            .unwrap()
+            .starts_with("urn:uv-bom")
+    );
+    assert_eq!(sbom["version"], 1);
+
+    // Verify metadata
+    let metadata = &sbom["metadata"];
+    assert!(metadata["timestamp"].is_string());
+    assert_eq!(metadata["tools"][0]["name"], "uv");
+    assert_eq!(metadata["tools"][0]["vendor"], "Astral");
+    assert_eq!(metadata["component"]["name"], "main-project");
+    assert_eq!(metadata["component"]["type"], "application");
+
+    // Verify components exist
+    let components = sbom["components"].as_array().unwrap();
+    assert!(!components.is_empty(), "Components should not be empty");
+
+    // Find workspace member components
+    let workspace_lib_a = components
+        .iter()
+        .find(|c| c["name"] == "workspace-lib-a")
+        .expect("workspace-lib-a component should exist");
+    assert_eq!(workspace_lib_a["type"], "library");
+    assert_eq!(workspace_lib_a["version"], "0.2.0");
+    assert!(
+        workspace_lib_a["purl"]
+            .as_str()
+            .unwrap()
+            .contains("pkg:pypi/workspace-lib-a@0.2.0")
+    );
+    assert!(
+        workspace_lib_a["description"]
+            .as_str()
+            .unwrap()
+            .contains("Workspace member")
+    );
+
+    let workspace_lib_b = components
+        .iter()
+        .find(|c| c["name"] == "workspace-lib-b")
+        .expect("workspace-lib-b component should exist");
+    assert_eq!(workspace_lib_b["type"], "library");
+    assert_eq!(workspace_lib_b["version"], "0.3.0");
+    assert!(
+        workspace_lib_b["purl"]
+            .as_str()
+            .unwrap()
+            .contains("pkg:pypi/workspace-lib-b@0.3.0")
+    );
+    assert!(
+        workspace_lib_b["description"]
+            .as_str()
+            .unwrap()
+            .contains("Workspace member")
+    );
+
+    // Find external dependency components
+    let requests = components
+        .iter()
+        .find(|c| c["name"] == "requests")
+        .expect("requests component should exist");
+    assert_eq!(requests["type"], "library");
+    assert!(
+        requests["purl"]
+            .as_str()
+            .unwrap()
+            .starts_with("pkg:pypi/requests@")
+    );
+    assert!(requests["description"].is_null());
+
+    let click = components
+        .iter()
+        .find(|c| c["name"] == "click")
+        .expect("click component should exist");
+    assert_eq!(click["type"], "library");
+    assert!(
+        click["purl"]
+            .as_str()
+            .unwrap()
+            .starts_with("pkg:pypi/click@")
+    );
+
+    let typer = components
+        .iter()
+        .find(|c| c["name"] == "typer")
+        .expect("typer component should exist");
+    assert_eq!(typer["type"], "library");
+    assert!(
+        typer["purl"]
+            .as_str()
+            .unwrap()
+            .starts_with("pkg:pypi/typer@")
+    );
+
+    // Verify dependencies structure
+    let dependencies = sbom["dependencies"].as_array().unwrap();
+    assert!(!dependencies.is_empty(), "Dependencies should not be empty");
+
+    // Find main component dependencies
+    let main_component_ref = metadata["component"]["bomRef"].as_str().unwrap();
+    let main_deps = dependencies
+        .iter()
+        .find(|d| d["ref"] == main_component_ref)
+        .expect("Main component dependencies should exist");
+
+    let main_depends_on = main_deps["dependsOn"].as_array().unwrap();
+    assert!(
+        main_depends_on.len() >= 3,
+        "Main component should depend on workspace members and external deps"
+    );
+
+    // Verify workspace member is in main dependencies
+    let has_workspace_lib_a = main_depends_on
+        .iter()
+        .any(|dep| dep.as_str().unwrap().contains("workspace-lib-a@0.2.0"));
+    assert!(has_workspace_lib_a, "Main should depend on workspace-lib-a");
+
+    let has_workspace_lib_b = main_depends_on
+        .iter()
+        .any(|dep| dep.as_str().unwrap().contains("workspace-lib-b@0.3.0"));
+    assert!(has_workspace_lib_b, "Main should depend on workspace-lib-b");
+
+    // Verify inter-workspace dependencies
+    let lib_b_deps = dependencies
+        .iter()
+        .find(|d| d["ref"].as_str().unwrap().contains("workspace-lib-b@0.3.0"))
+        .expect("workspace-lib-b dependencies should exist");
+
+    let lib_b_depends_on = lib_b_deps["dependsOn"].as_array().unwrap();
+    let depends_on_lib_a = lib_b_depends_on
+        .iter()
+        .any(|dep| dep.as_str().unwrap().contains("workspace-lib-a@0.2.0"));
+    assert!(
+        depends_on_lib_a,
+        "workspace-lib-b should depend on workspace-lib-a"
+    );
+
+    // Verify workspace-lib-b also depends on typer (external dependency)
+    let depends_on_typer = lib_b_depends_on
+        .iter()
+        .any(|dep| dep.as_str().unwrap().contains("typer@"));
+    assert!(depends_on_typer, "workspace-lib-b should depend on typer");
+
+    // Verify workspace-lib-a dependencies
+    let lib_a_deps = dependencies
+        .iter()
+        .find(|d| d["ref"].as_str().unwrap().contains("workspace-lib-a@0.2.0"))
+        .expect("workspace-lib-a dependencies should exist");
+
+    let lib_a_depends_on = lib_a_deps["dependsOn"].as_array().unwrap();
+    let depends_on_click = lib_a_depends_on
+        .iter()
+        .any(|dep| dep.as_str().unwrap().contains("click@"));
+    assert!(depends_on_click, "workspace-lib-a should depend on click");
+
+    Ok(())
+}
+
+#[test]
+fn sbom_workspace_with_hashes() -> Result<()> {
+    let context = TestContext::new("3.12");
+
+    let pyproject_toml = context.temp_dir.child("pyproject.toml");
+    pyproject_toml.write_str(
+        r#"
+        [project]
+        name = "project"
+        version = "0.1.0"
+        requires-python = ">=3.12"
+        dependencies = []
+
+        [project.optional-dependencies]
+        test = ["pytest"]
+
+        [dependency-groups]
+        dev = ["ruff"]
+        "#,
+    )?;
+
+    // Using --only-group and --extra together should error.
+    uv_snapshot!(context.filters(), context.export().arg("--only-group").arg("dev").arg("--extra").arg("test"), @r###"
+    success: false
+    exit_code: 2
+    ----- stdout -----
+
+    ----- stderr -----
+    error: the argument '--only-group <ONLY_GROUP>' cannot be used with '--extra <EXTRA>'
+
+    Usage: uv export --cache-dir [CACHE_DIR] --only-group <ONLY_GROUP> --exclude-newer <EXCLUDE_NEWER>
+
+    For more information, try '--help'.
+    "###);
+
+    // Using --only-group and --all-extras together should also error.
+    uv_snapshot!(context.filters(), context.export().arg("--only-group").arg("dev").arg("--all-extras"), @r###"
+    success: false
+    exit_code: 2
+    ----- stdout -----
+
+    ----- stderr -----
+    error: the argument '--only-group <ONLY_GROUP>' cannot be used with '--all-extras'
+
+    Usage: uv export --cache-dir [CACHE_DIR] --only-group <ONLY_GROUP> --exclude-newer <EXCLUDE_NEWER>
+
+    For more information, try '--help'.
+    "###);
+
+    let pyproject_toml = context.temp_dir.child("pyproject.toml");
+    pyproject_toml.write_str(
+        r#"
+        [project]
+        name = "test-project"
+        version = "0.1.0"
+        requires-python = ">=3.12"
+        dependencies = ["requests==2.31.0"]
+
+        [build-system]
+        requires = ["setuptools>=42"]
+        build-backend = "setuptools.build_meta"
+        "#,
+    )?;
+
+    context.lock().assert().success();
+
+    // Export SBOM with hashes
+    let output = context
+        .export()
+        .arg("--format")
+        .arg("sbom")
+        .arg("--no-header")
+        .arg("--hashes")
+        .output()?;
+
+    assert!(
+        output.status.success(),
+        "Export command with hashes failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let sbom_json = String::from_utf8(output.stdout)?;
+    let sbom: serde_json::Value = serde_json::from_str(&sbom_json)?;
+
+    // Verify components have hashes
+    let components = sbom["components"].as_array().unwrap();
+    let requests = components
+        .iter()
+        .find(|c| c["name"] == "requests")
+        .expect("requests component should exist");
+
+    if let Some(hashes) = requests["hashes"].as_array() {
+        assert!(
+            !hashes.is_empty(),
+            "Requests should have hashes when --hashes flag is used"
+        );
+
+        // Verify hash structure
+        let hash = &hashes[0];
+        assert!(hash["alg"].is_string(), "Hash should have algorithm");
+        assert!(hash["content"].is_string(), "Hash should have content");
+        assert!(
+            !hash["content"].as_str().unwrap().is_empty(),
+            "Hash content should not be empty"
+        );
+    } else {
+        panic!("requests component should have hashes array when --hashes flag is used");
+    }
+
+    Ok(())
+}
+
+#[test]
+fn sbom_single_project_no_workspace() -> Result<()> {
+    let context = TestContext::new("3.12");
+
+    let pyproject_toml = context.temp_dir.child("pyproject.toml");
+    pyproject_toml.write_str(
+        r#"
+        [project]
+        name = "simple-project"
+        version = "1.0.0"
+        requires-python = ">=3.12"
+        dependencies = ["click>=8.0"]
+
+        [build-system]
+        requires = ["setuptools>=42"]
+        build-backend = "setuptools.build_meta"
+        "#,
+    )?;
+
+    context.lock().assert().success();
+
+    let output = context
+        .export()
+        .arg("--format")
+        .arg("sbom")
+        .arg("--no-header")
+        .output()?;
+
+    assert!(
+        output.status.success(),
+        "Single project SBOM export failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let sbom_json = String::from_utf8(output.stdout)?;
+    let sbom: serde_json::Value = serde_json::from_str(&sbom_json)?;
+
+    // Verify single project structure
+    let metadata = &sbom["metadata"];
+    assert_eq!(metadata["component"]["name"], "simple-project");
+    assert_eq!(metadata["component"]["type"], "application");
+
+    // Should have the single project as a component
+    let components = sbom["components"].as_array().unwrap();
+    let simple_project = components
+        .iter()
+        .find(|c| c["name"] == "simple-project")
+        .expect("simple-project component should exist");
+    assert_eq!(simple_project["version"], "1.0.0");
+    assert!(
+        simple_project["description"]
+            .as_str()
+            .unwrap()
+            .contains("Workspace member")
+    );
+
+    // Should have external dependencies
+    let click = components
+        .iter()
+        .find(|c| c["name"] == "click")
+        .expect("click component should exist");
+    assert_eq!(click["type"], "library");
+
+    Ok(())
+}
