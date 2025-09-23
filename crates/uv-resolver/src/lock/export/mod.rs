@@ -22,6 +22,7 @@ pub use crate::lock::export::requirements_txt::RequirementsTxtExport;
 use crate::universal_marker::resolve_conflicts;
 use crate::{Installable, Package};
 
+pub mod cyclonedx_json;
 mod pylock_toml;
 mod requirements_txt;
 
