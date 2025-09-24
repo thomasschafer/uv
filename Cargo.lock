@@ -6458,7 +6458,6 @@ dependencies = [
  "toml_edit 0.23.4",
  "tracing",
  "url",
- "uuid",
  "uv-cache-key",
  "uv-client",
  "uv-configuration",
