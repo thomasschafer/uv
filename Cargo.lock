@@ -6673,6 +6673,7 @@ dependencies = [
  "itertools 0.14.0",
  "jiff",
  "owo-colors",
+ "percent-encoding",
  "petgraph",
  "pubgrub",
  "rkyv",

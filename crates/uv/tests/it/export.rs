@@ -4794,6 +4794,7 @@ fn cyclonedx_export_direct_url() -> Result<()> {
     Ok(())
 }
 
+
 #[test]
 fn cyclonedx_export_git_dependency() -> Result<()> {
     let context = TestContext::new("3.12").with_cyclonedx_filters();
@@ -4867,7 +4868,7 @@ fn cyclonedx_export_git_dependency() -> Result<()> {
           "bom-ref": "5-flask@2.3.3",
           "name": "flask",
           "version": "2.3.3",
-          "purl": "pkg:generic/flask@2.3.3?download_url=https://github.com/pallets/flask.git?rev=2.3.3#3205b53c7cf69d17fee49cac6b84978175b7dd73"
+          "purl": "pkg:generic/flask@2.3.3?vcs_url=https://github.com/pallets/flask.git%3Frev%3D2.3.3%233205b53c7cf69d17fee49cac6b84978175b7dd73"
         },
         {
           "type": "library",
@@ -5109,7 +5110,7 @@ fn cyclonedx_export_mixed_source_types() -> Result<()> {
           "bom-ref": "7-flask@2.3.3",
           "name": "flask",
           "version": "2.3.3",
-          "purl": "pkg:generic/flask@2.3.3?download_url=https://github.com/pallets/flask.git?rev=2.3.3#3205b53c7cf69d17fee49cac6b84978175b7dd73"
+          "purl": "pkg:generic/flask@2.3.3?vcs_url=https://github.com/pallets/flask.git%3Frev%3D2.3.3%233205b53c7cf69d17fee49cac6b84978175b7dd73"
         },
         {
           "type": "library",
