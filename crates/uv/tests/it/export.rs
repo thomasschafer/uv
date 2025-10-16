@@ -4860,7 +4860,13 @@ fn cyclonedx_export_git_dependency() -> Result<()> {
           "bom-ref": "4-colorama@0.4.6",
           "name": "colorama",
           "version": "0.4.6",
-          "purl": "pkg:pypi/colorama@0.4.6"
+          "purl": "pkg:pypi/colorama@0.4.6",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "sys_platform == 'win32'"
+            }
+          ]
         },
         {
           "type": "library",
@@ -5102,7 +5108,13 @@ fn cyclonedx_export_mixed_source_types() -> Result<()> {
           "bom-ref": "6-colorama@0.4.6",
           "name": "colorama",
           "version": "0.4.6",
-          "purl": "pkg:pypi/colorama@0.4.6"
+          "purl": "pkg:pypi/colorama@0.4.6",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "sys_platform == 'win32'"
+            }
+          ]
         },
         {
           "type": "library",
@@ -6484,6 +6496,368 @@ fn cyclonedx_export_workspace_complex_dependencies() -> Result<()> {
     }
     ----- stderr -----
     Resolved 7 packages in [TIME]
+    "#);
+
+    Ok(())
+}
+
+#[test]
+fn cyclonedx_export_dependency_marker() -> Result<()> {
+    let context = TestContext::new("3.12").with_cyclonedx_filters();
+
+    let pyproject_toml = context.temp_dir.child("pyproject.toml");
+    pyproject_toml.write_str(
+        r#"
+        [project]
+        name = "project"
+        version = "0.1.0"
+        requires-python = ">=3.12"
+        dependencies = ["anyio ; sys_platform == 'darwin'", "iniconfig"]
+
+        [build-system]
+        requires = ["setuptools>=42"]
+        build-backend = "setuptools.build_meta"
+        "#,
+    )?;
+
+    context.lock().assert().success();
+
+    uv_snapshot!(context.filters(), context.export().arg("--format").arg("cyclonedx1.5"), @r#"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    {
+      "bomFormat": "CycloneDX",
+      "specVersion": "1.5",
+      "version": 1,
+      "serialNumber": "[SERIAL_NUMBER]",
+      "metadata": {
+        "timestamp": "[TIMESTAMP]",
+        "tools": [
+          {
+            "vendor": "Astral Software Inc.",
+            "name": "uv",
+            "version": "[VERSION]"
+          }
+        ],
+        "component": {
+          "type": "application",
+          "bom-ref": "1-project@0.1.0",
+          "name": "project",
+          "version": "0.1.0"
+        }
+      },
+      "components": [
+        {
+          "type": "library",
+          "bom-ref": "2-anyio@4.3.0",
+          "name": "anyio",
+          "version": "4.3.0",
+          "purl": "pkg:pypi/anyio@4.3.0",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "sys_platform == 'darwin'"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "3-idna@3.6",
+          "name": "idna",
+          "version": "3.6",
+          "purl": "pkg:pypi/idna@3.6",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "sys_platform == 'darwin'"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "4-iniconfig@2.0.0",
+          "name": "iniconfig",
+          "version": "2.0.0",
+          "purl": "pkg:pypi/iniconfig@2.0.0"
+        },
+        {
+          "type": "library",
+          "bom-ref": "5-sniffio@1.3.1",
+          "name": "sniffio",
+          "version": "1.3.1",
+          "purl": "pkg:pypi/sniffio@1.3.1",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "sys_platform == 'darwin'"
+            }
+          ]
+        }
+      ],
+      "dependencies": [
+        {
+          "ref": "2-anyio@4.3.0",
+          "dependsOn": [
+            "3-idna@3.6",
+            "5-sniffio@1.3.1"
+          ]
+        },
+        {
+          "ref": "3-idna@3.6",
+          "dependsOn": []
+        },
+        {
+          "ref": "4-iniconfig@2.0.0",
+          "dependsOn": []
+        },
+        {
+          "ref": "1-project@0.1.0",
+          "dependsOn": [
+            "2-anyio@4.3.0",
+            "4-iniconfig@2.0.0"
+          ]
+        },
+        {
+          "ref": "5-sniffio@1.3.1",
+          "dependsOn": []
+        }
+      ]
+    }
+    ----- stderr -----
+    Resolved 5 packages in [TIME]
+    "#);
+
+    Ok(())
+}
+
+#[test]
+fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
+    let context = TestContext::new("3.12").with_cyclonedx_filters();
+
+    let pyproject_toml = context.temp_dir.child("pyproject.toml");
+    pyproject_toml.write_str(
+        r#"
+        [project]
+        name = "project"
+        version = "0.1.0"
+        requires-python = ">=3.10"
+        dependencies = [
+            "trio ; python_version > '3.11'",
+            "trio ; sys_platform == 'win32'",
+        ]
+
+        [build-system]
+        requires = ["setuptools>=42"]
+        build-backend = "setuptools.build_meta"
+        "#,
+    )?;
+
+    context.lock().assert().success();
+
+    uv_snapshot!(context.filters(), context.export().arg("--format").arg("cyclonedx1.5"), @r#"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    {
+      "bomFormat": "CycloneDX",
+      "specVersion": "1.5",
+      "version": 1,
+      "serialNumber": "[SERIAL_NUMBER]",
+      "metadata": {
+        "timestamp": "[TIMESTAMP]",
+        "tools": [
+          {
+            "vendor": "Astral Software Inc.",
+            "name": "uv",
+            "version": "[VERSION]"
+          }
+        ],
+        "component": {
+          "type": "application",
+          "bom-ref": "1-project@0.1.0",
+          "name": "project",
+          "version": "0.1.0"
+        }
+      },
+      "components": [
+        {
+          "type": "library",
+          "bom-ref": "2-attrs@23.2.0",
+          "name": "attrs",
+          "version": "23.2.0",
+          "purl": "pkg:pypi/attrs@23.2.0",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "3-cffi@1.16.0",
+          "name": "cffi",
+          "version": "1.16.0",
+          "purl": "pkg:pypi/cffi@1.16.0",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "(python_full_version >= '3.12' and implementation_name != 'pypy' and os_name == 'nt') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'win32')"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "4-exceptiongroup@1.2.0",
+          "name": "exceptiongroup",
+          "version": "1.2.0",
+          "purl": "pkg:pypi/exceptiongroup@1.2.0",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "python_full_version < '3.11' and sys_platform == 'win32'"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "5-idna@3.6",
+          "name": "idna",
+          "version": "3.6",
+          "purl": "pkg:pypi/idna@3.6",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "6-outcome@1.3.0.post0",
+          "name": "outcome",
+          "version": "1.3.0.post0",
+          "purl": "pkg:pypi/outcome@1.3.0.post0",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "7-pycparser@2.21",
+          "name": "pycparser",
+          "version": "2.21",
+          "purl": "pkg:pypi/pycparser@2.21",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "(python_full_version >= '3.12' and implementation_name != 'pypy' and os_name == 'nt') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'win32')"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "8-sniffio@1.3.1",
+          "name": "sniffio",
+          "version": "1.3.1",
+          "purl": "pkg:pypi/sniffio@1.3.1",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "9-sortedcontainers@2.4.0",
+          "name": "sortedcontainers",
+          "version": "2.4.0",
+          "purl": "pkg:pypi/sortedcontainers@2.4.0",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
+            }
+          ]
+        },
+        {
+          "type": "library",
+          "bom-ref": "10-trio@0.25.0",
+          "name": "trio",
+          "version": "0.25.0",
+          "purl": "pkg:pypi/trio@0.25.0",
+          "properties": [
+            {
+              "name": "python:environment_marker",
+              "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
+            }
+          ]
+        }
+      ],
+      "dependencies": [
+        {
+          "ref": "2-attrs@23.2.0",
+          "dependsOn": []
+        },
+        {
+          "ref": "3-cffi@1.16.0",
+          "dependsOn": [
+            "7-pycparser@2.21"
+          ]
+        },
+        {
+          "ref": "4-exceptiongroup@1.2.0",
+          "dependsOn": []
+        },
+        {
+          "ref": "5-idna@3.6",
+          "dependsOn": []
+        },
+        {
+          "ref": "6-outcome@1.3.0.post0",
+          "dependsOn": [
+            "2-attrs@23.2.0"
+          ]
+        },
+        {
+          "ref": "1-project@0.1.0",
+          "dependsOn": [
+            "10-trio@0.25.0"
+          ]
+        },
+        {
+          "ref": "7-pycparser@2.21",
+          "dependsOn": []
+        },
+        {
+          "ref": "8-sniffio@1.3.1",
+          "dependsOn": []
+        },
+        {
+          "ref": "9-sortedcontainers@2.4.0",
+          "dependsOn": []
+        },
+        {
+          "ref": "10-trio@0.25.0",
+          "dependsOn": [
+            "2-attrs@23.2.0",
+            "3-cffi@1.16.0",
+            "4-exceptiongroup@1.2.0",
+            "5-idna@3.6",
+            "6-outcome@1.3.0.post0",
+            "8-sniffio@1.3.1",
+            "9-sortedcontainers@2.4.0"
+          ]
+        }
+      ]
+    }
+    ----- stderr -----
+    Resolved 10 packages in [TIME]
     "#);
 
     Ok(())
