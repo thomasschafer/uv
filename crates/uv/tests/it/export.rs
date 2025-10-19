@@ -4863,7 +4863,7 @@ fn cyclonedx_export_git_dependency() -> Result<()> {
           "purl": "pkg:pypi/colorama@0.4.6",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "sys_platform == 'win32'"
             }
           ]
@@ -5112,7 +5112,7 @@ fn cyclonedx_export_mixed_source_types() -> Result<()> {
           "purl": "pkg:pypi/colorama@0.4.6",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "sys_platform == 'win32'"
             }
           ]
@@ -5577,11 +5577,7 @@ fn cyclonedx_export_with_workspace_member() -> Result<()> {
           "version": "0.1.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child1"
             }
           ]
@@ -5593,11 +5589,7 @@ fn cyclonedx_export_with_workspace_member() -> Result<()> {
           "version": "0.2.9",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "packages/child2"
             }
           ]
@@ -5846,11 +5838,7 @@ fn cyclonedx_export_workspace_with_extras() -> Result<()> {
           "version": "0.1.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child"
             }
           ]
@@ -5919,11 +5907,7 @@ fn cyclonedx_export_workspace_with_extras() -> Result<()> {
           "version": "0.1.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child"
             }
           ]
@@ -6058,11 +6042,7 @@ fn cyclonedx_export_workspace_frozen() -> Result<()> {
           "version": "0.1.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child"
             }
           ]
@@ -6224,11 +6204,7 @@ fn cyclonedx_export_workspace_all_packages() -> Result<()> {
           "version": "0.1.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child1"
             }
           ]
@@ -6240,11 +6216,7 @@ fn cyclonedx_export_workspace_all_packages() -> Result<()> {
           "version": "0.2.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child2"
             }
           ]
@@ -6418,11 +6390,7 @@ fn cyclonedx_export_workspace_complex_dependencies() -> Result<()> {
           "version": "0.1.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child1"
             }
           ]
@@ -6434,11 +6402,7 @@ fn cyclonedx_export_workspace_complex_dependencies() -> Result<()> {
           "version": "0.2.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child2"
             }
           ]
@@ -6569,7 +6533,7 @@ fn cyclonedx_export_dependency_marker() -> Result<()> {
           "purl": "pkg:pypi/anyio@4.3.0",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "sys_platform == 'darwin'"
             }
           ]
@@ -6582,7 +6546,7 @@ fn cyclonedx_export_dependency_marker() -> Result<()> {
           "purl": "pkg:pypi/idna@3.6",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "sys_platform == 'darwin'"
             }
           ]
@@ -6602,7 +6566,7 @@ fn cyclonedx_export_dependency_marker() -> Result<()> {
           "purl": "pkg:pypi/sniffio@1.3.1",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "sys_platform == 'darwin'"
             }
           ]
@@ -6702,7 +6666,7 @@ fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
           "purl": "pkg:pypi/attrs@23.2.0",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
             }
           ]
@@ -6715,7 +6679,7 @@ fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
           "purl": "pkg:pypi/cffi@1.16.0",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "(python_full_version >= '3.12' and implementation_name != 'pypy' and os_name == 'nt') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'win32')"
             }
           ]
@@ -6728,7 +6692,7 @@ fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
           "purl": "pkg:pypi/exceptiongroup@1.2.0",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "python_full_version < '3.11' and sys_platform == 'win32'"
             }
           ]
@@ -6741,7 +6705,7 @@ fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
           "purl": "pkg:pypi/idna@3.6",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
             }
           ]
@@ -6754,7 +6718,7 @@ fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
           "purl": "pkg:pypi/outcome@1.3.0.post0",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
             }
           ]
@@ -6767,7 +6731,7 @@ fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
           "purl": "pkg:pypi/pycparser@2.21",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "(python_full_version >= '3.12' and implementation_name != 'pypy' and os_name == 'nt') or (implementation_name != 'pypy' and os_name == 'nt' and sys_platform == 'win32')"
             }
           ]
@@ -6780,7 +6744,7 @@ fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
           "purl": "pkg:pypi/sniffio@1.3.1",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
             }
           ]
@@ -6793,7 +6757,7 @@ fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
           "purl": "pkg:pypi/sortedcontainers@2.4.0",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
             }
           ]
@@ -6806,7 +6770,7 @@ fn cyclonedx_export_multiple_dependency_markers() -> Result<()> {
           "purl": "pkg:pypi/trio@0.25.0",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "python_full_version >= '3.12' or sys_platform == 'win32'"
             }
           ]
@@ -6945,7 +6909,7 @@ fn cyclonedx_export_dependency_extra() -> Result<()> {
           "purl": "pkg:pypi/colorama@0.4.6",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "sys_platform == 'win32'"
             }
           ]
@@ -7129,7 +7093,7 @@ fn cyclonedx_export_prune() -> Result<()> {
           "purl": "pkg:pypi/cffi@1.16.0",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "implementation_name == 'pypy'"
             }
           ]
@@ -7149,7 +7113,7 @@ fn cyclonedx_export_prune() -> Result<()> {
           "purl": "pkg:pypi/pycparser@2.21",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "implementation_name == 'pypy'"
             }
           ]
@@ -7417,7 +7381,7 @@ fn cyclonedx_export_group() -> Result<()> {
           "purl": "pkg:pypi/anyio@4.3.0",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "sys_platform == 'darwin'"
             }
           ]
@@ -7430,7 +7394,7 @@ fn cyclonedx_export_group() -> Result<()> {
           "purl": "pkg:pypi/idna@3.6",
           "properties": [
             {
-              "name": "uv:marker",
+              "name": "cdx:python:package:marker",
               "value": "sys_platform == 'darwin'"
             }
           ]
@@ -7677,11 +7641,7 @@ fn cyclonedx_export_no_emit() -> Result<()> {
           "version": "0.1.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child"
             }
           ]
@@ -7780,11 +7740,7 @@ fn cyclonedx_export_no_emit() -> Result<()> {
           "version": "0.1.0",
           "properties": [
             {
-              "name": "uv:workspace",
-              "value": "true"
-            },
-            {
-              "name": "uv:workspace_path",
+              "name": "uv:workspace:path",
               "value": "child"
             }
           ]
