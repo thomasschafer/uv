@@ -24,6 +24,7 @@ bitflags::bitflags! {
         const INIT_PROJECT_FLAG = 1 << 12;
         const WORKSPACE_METADATA = 1 << 13;
         const WORKSPACE_DIR = 1 << 14;
+        const SBOM_EXPORT = 1 << 12;
     }
 }
 
@@ -48,6 +49,7 @@ impl PreviewFeatures {
             Self::INIT_PROJECT_FLAG => "init-project-flag",
             Self::WORKSPACE_METADATA => "workspace-metadata",
             Self::WORKSPACE_DIR => "workspace-dir",
+            Self::SBOM_EXPORT => "sbom-export",
             _ => panic!("`flag_as_str` can only be used for exactly one feature flag"),
         }
     }
@@ -100,6 +102,7 @@ impl FromStr for PreviewFeatures {
                 "init-project-flag" => Self::INIT_PROJECT_FLAG,
                 "workspace-metadata" => Self::WORKSPACE_METADATA,
                 "workspace-dir" => Self::WORKSPACE_DIR,
+                "sbom-export" => Self::SBOM_EXPORT,
                 _ => {
                     warn_user_once!("Unknown preview feature: `{part}`");
                     continue;
@@ -275,6 +278,7 @@ mod tests {
         );
         assert_eq!(PreviewFeatures::FORMAT.flag_as_str(), "format");
         assert_eq!(PreviewFeatures::S3_ENDPOINT.flag_as_str(), "s3-endpoint");
+        assert_eq!(PreviewFeatures::SBOM_EXPORT.flag_as_str(), "sbom-export");
     }
 
     #[test]
