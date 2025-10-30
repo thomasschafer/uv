@@ -24,7 +24,7 @@ bitflags::bitflags! {
         const INIT_PROJECT_FLAG = 1 << 12;
         const WORKSPACE_METADATA = 1 << 13;
         const WORKSPACE_DIR = 1 << 14;
-        const SBOM_EXPORT = 1 << 12;
+        const SBOM_EXPORT = 1 << 15;
     }
 }
 
