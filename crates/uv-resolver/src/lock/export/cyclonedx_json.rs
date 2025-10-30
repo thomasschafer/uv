@@ -57,23 +57,10 @@ struct ComponentBuilder<'a> {
 }
 
 impl<'a> ComponentBuilder<'a> {
-    /// Create and register a `CycloneDX` component, updating the counter and map.
-    fn create_component(
-        &mut self,
-        package: &'a Package,
-        package_type: PackageType,
-        marker: Option<&MarkerTree>,
-    ) -> Component {
-        let component =
-            Self::create_component_from_package(package, package_type, marker, self.id_counter);
-        self.package_to_component_map
-            .insert(&package.id, component.clone());
-        self.id_counter += 1;
-        component
-    }
-
     /// Creates a bom-ref string in the format "{id}-{package_name}@{version}" or "{id}-{package_name}" if no version is provided.
-    fn create_bom_ref(id: usize, name: &str, version: Option<&str>) -> String {
+    fn create_bom_ref(&mut self, name: &str, version: Option<&str>) -> String {
+        self.id_counter += 1;
+        let id = self.id_counter;
         if let Some(version) = version {
             format!("{id}-{name}@{version}")
         } else {
@@ -135,17 +122,63 @@ impl<'a> ComponentBuilder<'a> {
         format!("?{joined_qualifiers}")
     }
 
-    /// Create a `CycloneDX` component from a package node with the given classification and ID.
+    fn create_component(
+        &mut self,
+        package: &'a Package,
+        package_type: PackageType,
+        marker: Option<&MarkerTree>,
+    ) -> Component {
+        let component = self.create_component_from_package(package, package_type, marker);
+        self.package_to_component_map
+            .insert(&package.id, component.clone());
+        component
+    }
+
+    fn create_synthetic_root_component(&mut self) -> Component {
+        let name = "uv-workspace";
+        let bom_ref = self.create_bom_ref(name, None);
+
+        // No need to register as we manually add dependencies in `if all_packages` check in `from_lock`
+        Component {
+            component_type: Classification::Application,
+            name: NormalizedString::new(name),
+            version: None,
+            bom_ref: Some(bom_ref),
+            purl: None,
+            mime_type: None,
+            supplier: None,
+            author: None,
+            publisher: None,
+            group: None,
+            description: None,
+            scope: None,
+            hashes: None,
+            licenses: None,
+            copyright: None,
+            cpe: None,
+            swid: None,
+            modified: None,
+            pedigree: None,
+            external_references: None,
+            properties: None,
+            components: None,
+            evidence: None,
+            signature: None,
+            model_card: None,
+            data: None,
+        }
+    }
+
     #[allow(clippy::needless_pass_by_value)]
     fn create_component_from_package(
+        &mut self,
         package: &Package,
         package_type: PackageType,
         marker: Option<&MarkerTree>,
-        id: usize,
     ) -> Component {
         let name = Self::get_package_name(package);
         let version = Self::get_version_string(package);
-        let bom_ref = Self::create_bom_ref(id, name, version.as_deref());
+        let bom_ref = self.create_bom_ref(name, version.as_deref());
         let purl = Self::create_purl(package).and_then(|purl_string| purl_string.parse().ok());
         let mut properties = vec![];
 
@@ -202,7 +235,7 @@ impl<'a> ComponentBuilder<'a> {
         }
     }
 
-    fn create_dependencies(&self, nodes: &[ExportableRequirement<'_>]) -> Dependencies {
+    fn create_dependencies(&self, nodes: &[ExportableRequirement<'_>]) -> Vec<Dependency> {
         let dependencies = nodes.iter().map(|node| {
             let package_bom_ref = self
                 .package_to_component_map
@@ -233,7 +266,7 @@ impl<'a> ComponentBuilder<'a> {
                 dependencies: bom_refs,
             }
         });
-        Dependencies(dependencies.collect())
+        dependencies.collect()
     }
 }
 
@@ -245,6 +278,7 @@ pub fn from_lock<'lock>(
     annotate: bool,
     install_options: &'lock InstallOptions,
     preview: Preview,
+    all_packages: bool,
 ) -> Result<Bom, LockError> {
     if !preview.is_enabled(PreviewFeatures::SBOM_EXPORT) {
         warn_user!(
@@ -279,7 +313,7 @@ pub fn from_lock<'lock>(
 
     let mut component_builder = ComponentBuilder::default();
 
-    let metadata = Metadata {
+    let mut metadata = Metadata {
         component: root
             .map(|package| component_builder.create_component(package, PackageType::Root, None)),
         timestamp: cyclonedx_bom::prelude::DateTime::now().ok(),
@@ -306,7 +340,7 @@ pub fn from_lock<'lock>(
         })
         .collect::<FxHashSet<_>>();
 
-    let components = nodes
+    let mut components = nodes
         .iter()
         .filter(|node| root.is_none_or(|root_pkg| root_pkg.id != node.package.id)) // Filter out root package as this is included in `metadata`
         .map(|node| {
@@ -330,14 +364,43 @@ pub fn from_lock<'lock>(
             };
             component_builder.create_component(node.package, package_type, Some(&node.marker))
         })
-        .collect();
+        .collect::<Vec<_>>();
 
-    let dependencies = component_builder.create_dependencies(&nodes);
+    let mut dependencies = component_builder.create_dependencies(&nodes);
+
+    // With `--all-packages`, use synthetic root which depends on workspace root and all workspace members.
+    // This ensures that we don't have any dangling components resulting from workspace packages not depended on by the workspace root.
+    if all_packages {
+        let synthetic_root = component_builder.create_synthetic_root_component();
+        let synthetic_root_bom_ref = synthetic_root
+            .bom_ref
+            .clone()
+            .expect("bom-ref should always exist");
+        let workspace_root = metadata.component.replace(synthetic_root);
+
+        if let Some(workspace_root) = workspace_root {
+            components.push(workspace_root);
+        }
+
+        dependencies.push(Dependency {
+            dependency_ref: synthetic_root_bom_ref,
+            dependencies: components
+                .iter()
+                .filter_map(|c| {
+                    if c.component_type == Classification::Application {
+                        c.bom_ref.clone()
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+        });
+    }
 
     let bom = Bom {
         metadata: Some(metadata),
         components: Some(Components(components)),
-        dependencies: Some(dependencies),
+        dependencies: Some(Dependencies(dependencies)),
         ..Bom::default()
     };
 
